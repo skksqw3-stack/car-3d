@@ -25,7 +25,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android SDK (Manual)
+    - name: Setup Android SDK
       run: |
         sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools
         cd /usr/local/lib/android/sdk/cmdline-tools
@@ -45,9 +45,9 @@ jobs:
         yes | sdkmanager --licenses > /dev/null 2>&1 || true
         sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-    - name: Download Godot and Export Templates
+    - name: Download Godot 4.3 and Export Templates
       run: |
-        GODOT_VERSION="4.2.2"
+        GODOT_VERSION="4.3"
         
         wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
         unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
@@ -58,6 +58,25 @@ jobs:
         mkdir -p ~/.local/share/godot/export_templates/
         unzip -q Godot_v${GODOT_VERSION}-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/
         mv ~/.local/share/godot/export_templates/templates ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+    - name: Generate Debug Keystore
+      run: |
+        # ساخت کلید دیباگ
+        keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
+
+    - name: Configure Godot Editor Settings
+      run: |
+        # ایجاد فایل تنظیمات ادیتور Godot برای شناسایی SDK و Keystore
+        mkdir -p ~/.config/godot
+        cat <<EOF > ~/.config/godot/editor_settings-4.tres
+        [gd_resource type="EditorSettings" format=3]
+
+        [resource]
+        export/android/android_sdk_path = "/usr/local/lib/android/sdk"
+        export/android/debug_keystore = "$(pwd)/debug.keystore"
+        export/android/debug_keystore_user = "androiddebugkey"
+        export/android/debug_keystore_pass = "android"
+        EOF
 
     - name: Build APK
       run: |
@@ -73,6 +92,7 @@ jobs:
         
         cd "$PROJECT_DIR"
         
+        # اجرای دستور Export برای اندروید
         ~/work/car-3d/car-3d/godot --headless --export-debug "Android" build/SpeedRacer.apk || \
         ~/work/car-3d/car-3d/godot --headless --export-debug "Android" SpeedRacer.apk
 
