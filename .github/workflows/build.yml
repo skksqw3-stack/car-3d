@@ -8,10 +8,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Setup Godot Export Templates
+      run: |
+        mkdir -v -p ~/.local/share/godot/export_templates/
+        mv /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/4.3.stable
 
     - name: Unzip the Godot project
       run: |
@@ -45,20 +52,6 @@ jobs:
         yes | sdkmanager --licenses > /dev/null 2>&1 || true
         sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-    - name: Download Godot 4.5 and Export Templates
-      run: |
-        GODOT_VERSION="4.5"
-        
-        wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
-        unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
-        mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 godot
-        chmod +x godot
-        
-        wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
-        mkdir -p ~/.local/share/godot/export_templates/
-        unzip -q Godot_v${GODOT_VERSION}-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/
-        mv ~/.local/share/godot/export_templates/templates ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
-
     - name: Generate Debug Keystore
       run: |
         keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
@@ -76,23 +69,13 @@ jobs:
         export/android/debug_keystore_pass = "android"
         EOF
 
-    - name: Generate export_presets.cfg with Godot
+    - name: Create export_presets.cfg
       run: |
         PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
         PROJECT_DIR=$(dirname "$PROJECT_FILE")
         cd "$PROJECT_DIR"
         
-        echo "--- اجرای Godot برای ساخت export_presets.cfg ---"
-        # اجرای Godot در حالت ادیتور برای یک ثانیه تا فایل تنظیمات ساخته شود
-        timeout 20s ~/work/car-3d/car-3d/godot --headless --editor --quit || true
-        
-        echo "--- بررسی وجود فایل export_presets.cfg ---"
-        if [ -f "export_presets.cfg" ]; then
-          echo "فایل توسط Godot ساخته شد:"
-          cat export_presets.cfg
-        else
-          echo "Godot فایل را نساخت. ساخت دستی..."
-          cat <<EOF > export_presets.cfg
+        cat <<EOF > export_presets.cfg
         [preset.0]
         name="Android"
         platform="Android"
@@ -105,38 +88,46 @@ jobs:
         exclude_filter=""
         export_path="build/SpeedRacer.apk"
         script_export_mode=2
-        EOF
-        fi
-
-    - name: Update export_presets.cfg
-      run: |
-        PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
-        PROJECT_DIR=$(dirname "$PROJECT_FILE")
-        cd "$PROJECT_DIR"
-        
-        # به‌روزرسانی مسیر خروجی و تنظیمات Keystore
-        sed -i 's|export_path=".*"|export_path="build/SpeedRacer.apk"|' export_presets.cfg || true
-        
-        # اضافه کردن تنظیمات Keystore اگر وجود نداشت
-        if ! grep -q "keystore/debug" export_presets.cfg; then
-          cat <<EOF >> export_presets.cfg
 
         [preset.0.options]
-        keystore/debug="$(pwd)/../../debug.keystore"
-        keystore/debug_user="androiddebugkey"
-        keystore/debug_password="android"
+        custom_template/debug=""
+        custom_template/release=""
         gradle_build/use_gradle_build=false
+        gradle_build/export_format=0
         arch/armeabi_v7a=true
         arch/arm64_v8a=true
         arch/x86=false
         arch/x86_64=false
+        version/code=1
+        version/name="1.0"
         package/unique_name="com.example.speedracer"
         package/name="SpeedRacer"
         package/signed=true
+        package/app_category=2
+        package/retain_data_on_uninstall=false
+        package/exclude_from_recents=false
+        package/show_in_android_tv=false
+        package/show_in_app_library=true
+        package/show_as_launcher_app=false
+        launcher_icons/main_192x192=""
+        launcher_icons/adaptive_foreground_432x432=""
+        launcher_icons/adaptive_background_432x432=""
+        graphics/opengl_debug=false
+        xr_features/xr_mode=0
+        screen/immersive_mode=true
+        screen/support_small=true
+        screen/support_normal=true
+        screen/support_large=true
+        screen/support_xlarge=true
+        user_data_backup/allow=false
+        command_line/extra_args=""
+        apk_expansion/enable=false
+        permissions/custom_permissions=PackedStringArray()
+        permissions/access_network_state=false
+        permissions/internet=false
         EOF
-        fi
         
-        echo "--- محتوای نهایی export_presets.cfg ---"
+        echo "--- محتوای export_presets.cfg ---"
         cat export_presets.cfg
 
     - name: Build APK
@@ -147,13 +138,10 @@ jobs:
         
         mkdir -p build
         
-        echo "--- اجرای دستور Export ---"
-        ~/work/car-3d/car-3d/godot --headless --export-debug "Android" build/SpeedRacer.apk 2>&1 | tee godot_export.log
-        
-        echo "--- بررسی فایل خروجی ---"
-        ls -la build/ || echo "پوشه build خالی است."
+        # اجرای دستور Export با استفاده از Godot داخل Docker
+        godot --headless --verbose --export-debug "Android" build/SpeedRacer.apk 2>&1 | tee godot_export.log
 
-    - name: Upload Logs
+    - name: Upload Logs (if failed)
       if: always()
       uses: actions/upload-artifact@v4
       with:
@@ -162,9 +150,15 @@ jobs:
           **/godot_export.log
           **/*.log
 
+    - name: Find and Rename APK
+      if: success()
+      run: |
+        find extracted_project -name "*.apk" -exec cp {} ./SpeedRacer-Debug.apk \;
+        ls -la ./SpeedRacer-Debug.apk
+
     - name: Upload APK Artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: SpeedRacer-APK
-        path: |
-          **/*.apk
+        path: ./SpeedRacer-Debug.apk
