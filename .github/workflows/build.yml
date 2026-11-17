@@ -15,14 +15,15 @@ jobs:
 
     - name: Unzip the project
       run: |
-        unzip -q CarRacing3D-Kotlin-Android.zip -d extracted_project
+        # نام فایل زیپ جدید شما در اینجا قرار گرفته است
+        unzip -q CarRacing3D-Kotlin-Android-RealCars.zip -d extracted_project
         echo "--- محتوای پوشه استخراج شده ---"
         ls -la extracted_project
 
-    - name: Set up JDK 17
+    - name: Set up JDK 11
       uses: actions/setup-java@v5
       with:
-        java-version: '17'
+        java-version: '11'
         distribution: 'temurin'
 
     - name: Setup Gradle (System)
@@ -43,8 +44,8 @@ jobs:
         
         cd "$PROJECT_DIR"
         
-        # اجرای Gradle سیستمی به جای ./gradlew
-        gradle assembleDebug
+        # اجرای Gradle با تنظیمات سازگاری JVM
+        gradle assembleDebug -Pkotlin.jvm.target.validation.mode=warning
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
