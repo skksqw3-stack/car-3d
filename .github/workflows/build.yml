@@ -25,12 +25,27 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+    - name: Setup Android SDK (Manual)
+      run: |
+        # نصب Android SDK Command-line Tools
+        sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools
+        cd /usr/local/lib/android/sdk/cmdline-tools
+        sudo wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+        sudo unzip -q cmdline-tools.zip
+        sudo mv cmdline-tools latest
+        sudo rm cmdline-tools.zip
+        
+        # تنظیم متغیرهای محیطی
+        echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+        echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        
+        # پذیرش لایسنس‌ها و نصب پکیج‌های مورد نیاز
+        yes | sdkmanager --licenses || true
+        sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
     - name: Download Godot and Export Templates
       run: |
-        # نسخه Godot را اینجا تنظیم کنید (مثلا 4.2.2 یا 4.3)
         GODOT_VERSION="4.2.2"
         
         echo "دانلود Godot $GODOT_VERSION..."
@@ -47,11 +62,10 @@ jobs:
 
     - name: Build APK
       run: |
-        # پیدا کردن فایل project.godot
         PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
         
         if [ -z "$PROJECT_FILE" ]; then
-          echo "خطا: فایل project.godot پیدا نشد. آیا سورس‌کد Godot داخل زیپ است؟"
+          echo "خطا: فایل project.godot پیدا نشد."
           exit 1
         fi
         
