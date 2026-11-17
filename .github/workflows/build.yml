@@ -63,7 +63,83 @@ jobs:
       run: |
         keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
 
-    - name: Build APK with Advanced GDScript
+    - name: Configure Godot Editor Settings
+      run: |
+        mkdir -p ~/.config/godot
+        cat <<EOF > ~/.config/godot/editor_settings-4.tres
+        [gd_resource type="EditorSettings" format=3]
+
+        [resource]
+        export/android/android_sdk_path = "/usr/local/lib/android/sdk"
+        export/android/debug_keystore = "$(pwd)/debug.keystore"
+        export/android/debug_keystore_user = "androiddebugkey"
+        export/android/debug_keystore_pass = "android"
+        EOF
+
+    - name: Generate export_presets.cfg with Godot
+      run: |
+        PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
+        PROJECT_DIR=$(dirname "$PROJECT_FILE")
+        cd "$PROJECT_DIR"
+        
+        echo "--- اجرای Godot برای ساخت export_presets.cfg ---"
+        # اجرای Godot در حالت ادیتور برای یک ثانیه تا فایل تنظیمات ساخته شود
+        timeout 20s ~/work/car-3d/car-3d/godot --headless --editor --quit || true
+        
+        echo "--- بررسی وجود فایل export_presets.cfg ---"
+        if [ -f "export_presets.cfg" ]; then
+          echo "فایل توسط Godot ساخته شد:"
+          cat export_presets.cfg
+        else
+          echo "Godot فایل را نساخت. ساخت دستی..."
+          cat <<EOF > export_presets.cfg
+        [preset.0]
+        name="Android"
+        platform="Android"
+        runnable=true
+        advanced_options=false
+        dedicated_server=false
+        custom_features=""
+        export_filter="all_resources"
+        include_filter=""
+        exclude_filter=""
+        export_path="build/SpeedRacer.apk"
+        script_export_mode=2
+        EOF
+        fi
+
+    - name: Update export_presets.cfg
+      run: |
+        PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
+        PROJECT_DIR=$(dirname "$PROJECT_FILE")
+        cd "$PROJECT_DIR"
+        
+        # به‌روزرسانی مسیر خروجی و تنظیمات Keystore
+        sed -i 's|export_path=".*"|export_path="build/SpeedRacer.apk"|' export_presets.cfg || true
+        
+        # اضافه کردن تنظیمات Keystore اگر وجود نداشت
+        if ! grep -q "keystore/debug" export_presets.cfg; then
+          cat <<EOF >> export_presets.cfg
+
+        [preset.0.options]
+        keystore/debug="$(pwd)/../../debug.keystore"
+        keystore/debug_user="androiddebugkey"
+        keystore/debug_password="android"
+        gradle_build/use_gradle_build=false
+        arch/armeabi_v7a=true
+        arch/arm64_v8a=true
+        arch/x86=false
+        arch/x86_64=false
+        package/unique_name="com.example.speedracer"
+        package/name="SpeedRacer"
+        package/signed=true
+        EOF
+        fi
+        
+        echo "--- محتوای نهایی export_presets.cfg ---"
+        cat export_presets.cfg
+
+    - name: Build APK
       run: |
         PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
         PROJECT_DIR=$(dirname "$PROJECT_FILE")
@@ -71,41 +147,8 @@ jobs:
         
         mkdir -p build
         
-        # ایجاد اسکریپت پیشرفته GDScript
-        cat <<'EOF' > export_script.gd
-        @tool
-        extends EditorScript
-
-        func _run():
-            var export_path = "res://build/SpeedRacer.apk"
-            
-            # ایجاد یک پریست جدید برای اندروید
-            var preset = EditorExportPreset.new()
-            preset.name = "Android"
-            preset.platform = "Android"
-            preset.runnable = true
-            preset.export_filter = EditorExportPreset.EXPORT_ALL_RESOURCES
-            
-            # تنظیمات Keystore
-            preset.set("keystore/debug", OS.get_environment("HOME") + "/debug.keystore")
-            preset.set("keystore/debug_user", "androiddebugkey")
-            preset.set("keystore/debug_password", "android")
-            
-            # تنظیم مسیر Android SDK
-            preset.set("gradle_build/use_gradle_build", false)
-            
-            # انجام Export
-            var platform = EditorExportPlatformAndroid.new()
-            var err = platform.export_project(preset, export_path, false)
-            
-            if err == OK:
-                print("✅ APK با موفقیت ساخته شد: ", export_path)
-            else:
-                print("❌ خطا در ساخت APK. کد خطا: ", err)
-        EOF
-        
-        echo "--- اجرای اسکریپت Export پیشرفته ---"
-        ~/work/car-3d/car-3d/godot --headless --path "$(pwd)" --script export_script.gd 2>&1 | tee godot_export.log
+        echo "--- اجرای دستور Export ---"
+        ~/work/car-3d/car-3d/godot --headless --export-debug "Android" build/SpeedRacer.apk 2>&1 | tee godot_export.log
         
         echo "--- بررسی فایل خروجی ---"
         ls -la build/ || echo "پوشه build خالی است."
