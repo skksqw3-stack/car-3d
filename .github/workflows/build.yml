@@ -1,4 +1,4 @@
-name: Build APK from Zip
+name: Build APK from Zip (Without gradlew)
 
 on:
   push:
@@ -25,25 +25,16 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Grant execute permission for gradlew
-      run: |
-        # پیدا کردن فایل gradlew در پوشه استخراج شده
-        GRADLEW_PATH=$(find extracted_project -name "gradlew" -type f | head -n 1)
-        
-        if [ -z "$GRADLEW_PATH" ]; then
-          echo "خطا: فایل gradlew پیدا نشد. آیا مطمئن هستید فایل های مخفی در زیپ هستند؟"
-          exit 1
-        fi
-        
-        chmod +x "$GRADLEW_PATH"
+    - name: Setup Gradle (System)
+      uses: gradle/actions/setup-gradle@v3
 
-    - name: Build with Gradle
+    - name: Build with System Gradle
       run: |
         # پیدا کردن پوشه‌ای که فایل build.gradle در آن قرار دارد
         BUILD_GRADLE_PATH=$(find extracted_project -name "build.gradle*" | head -n 1)
         
         if [ -z "$BUILD_GRADLE_PATH" ]; then
-          echo "خطا: فایل build.gradle پیدا نشد."
+          echo "خطا: فایل build.gradle پیدا نشد. لطفا بررسی کنید که سورس‌کد پروژه داخل زیپ باشد."
           exit 1
         fi
         
@@ -51,7 +42,9 @@ jobs:
         echo "پروژه در مسیر زیر پیدا شد: $PROJECT_DIR"
         
         cd "$PROJECT_DIR"
-        ./gradlew assembleDebug
+        
+        # اجرای Gradle سیستمی به جای ./gradlew
+        gradle assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
