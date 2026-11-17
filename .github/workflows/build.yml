@@ -149,7 +149,17 @@ jobs:
         
         mkdir -p build
         
+        # تلاش برای خروجی گرفتن
         ~/work/car-3d/car-3d/godot --headless --verbose --export-debug "Android" build/SpeedRacer.apk 2>&1 | tee godot_export.log
+
+    - name: Search Entire System for APK
+      if: always()
+      run: |
+        echo "--- جستجو در کل سیستم برای فایل‌های APK ---"
+        sudo find / -name "*.apk" -type f 2>/dev/null || echo "هیچ فایل APK در کل سیستم پیدا نشد."
+        
+        echo "--- بررسی پوشه build در پروژه ---"
+        ls -la extracted_project/GodotRacer/build/ || echo "پوشه build خالی است یا وجود ندارد."
 
     - name: Upload Logs (if failed)
       if: failure()
@@ -160,15 +170,10 @@ jobs:
           **/godot_export.log
           **/*.log
 
-    - name: Find and Rename APK
-      if: success()
-      run: |
-        find extracted_project -name "*.apk" -exec cp {} ./SpeedRacer-Debug.apk \;
-        ls -la ./SpeedRacer-Debug.apk
-
     - name: Upload APK Artifact
       if: success()
       uses: actions/upload-artifact@v4
       with:
         name: SpeedRacer-APK
-        path: ./SpeedRacer-Debug.apk
+        path: |
+          **/*.apk
