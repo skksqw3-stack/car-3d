@@ -8,21 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: barichello/godot-ci:4.3
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
-    - name: Setup Godot Export Templates
-      run: |
-        mkdir -v -p ~/.local/share/godot/export_templates/
-        if [ -d "/root/.local/share/godot/export_templates/4.3.stable" ]; then
-          mv /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/4.3.stable
-        else
-          echo "قالب‌های خروجی از قبل در مسیر صحیح هستند."
-        fi
 
     - name: Unzip the Godot project
       run: |
@@ -30,61 +19,24 @@ jobs:
         echo "--- محتوای پوشه استخراج شده ---"
         ls -la extracted_project
 
-    - name: Set up JDK 17
+    - name: Setup Java
       uses: actions/setup-java@v5
       with:
-        java-version: '17'
         distribution: 'temurin'
+        java-version: '17'
 
-    - name: Setup Android SDK (بدون sudo)
-      run: |
-        # در کانتینر، ما root هستیم، پس نیازی به sudo نیست
-        mkdir -p /usr/local/lib/android/sdk/cmdline-tools
-        cd /usr/local/lib/android/sdk/cmdline-tools
-        
-        # دانلود و استخراج ابزارهای خط فرمان
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-        unzip -q cmdline-tools.zip
-        mv cmdline-tools latest
-        rm cmdline-tools.zip
-        
-        # تنظیم متغیرهای محیطی
-        export ANDROID_HOME=/usr/local/lib/android/sdk
-        export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
-        
-        echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
-        echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
-        echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        
-        # پذیرش لایسنس‌ها و نصب پکیج‌های مورد نیاز
-        yes | sdkmanager --licenses > /dev/null 2>&1 || true
-        sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
 
-    - name: Generate Debug Keystore
-      run: |
-        keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
-
-    - name: Configure Godot Editor Settings
-      run: |
-        mkdir -p ~/.config/godot
-        cat <<EOF > ~/.config/godot/editor_settings-4.tres
-        [gd_resource type="EditorSettings" format=3]
-
-        [resource]
-        export/android/android_sdk_path = "/usr/local/lib/android/sdk"
-        export/android/debug_keystore = "$(pwd)/debug.keystore"
-        export/android/debug_keystore_user = "androiddebugkey"
-        export/android/debug_keystore_pass = "android"
-        EOF
-
-    - name: Create export_presets.cfg
+    - name: Create export_presets.cfg (اگر وجود ندارد)
       run: |
         PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
         PROJECT_DIR=$(dirname "$PROJECT_FILE")
         cd "$PROJECT_DIR"
         
-        cat <<EOF > export_presets.cfg
+        if [ ! -f "export_presets.cfg" ]; then
+          echo "فایل export_presets.cfg وجود ندارد. ساخت فایل پیش‌فرض..."
+          cat <<EOF > export_presets.cfg
         [preset.0]
         name="Android"
         platform="Android"
@@ -135,39 +87,24 @@ jobs:
         permissions/access_network_state=false
         permissions/internet=false
         EOF
-        
-        echo "--- محتوای export_presets.cfg ---"
-        cat export_presets.cfg
+        else
+          echo "فایل export_presets.cfg از قبل وجود دارد."
+        fi
 
-    - name: Build APK
-      run: |
-        PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
-        PROJECT_DIR=$(dirname "$PROJECT_FILE")
-        cd "$PROJECT_DIR"
-        
-        mkdir -p build
-        
-        # اجرای دستور Export با استفاده از Godot داخل Docker
-        godot --headless --verbose --export-debug "Android" build/SpeedRacer.apk 2>&1 | tee godot_export.log
-
-    - name: Upload Logs (if failed)
-      if: always()
-      uses: actions/upload-artifact@v4
+    - name: Export Godot Project (Android APK)
+      uses: firebelley/godot-export@v7.0.0
       with:
-        name: Godot-Export-Logs
-        path: |
-          **/godot_export.log
-          **/*.log
-
-    - name: Find and Rename APK
-      if: success()
-      run: |
-        find extracted_project -name "*.apk" -exec cp {} ./SpeedRacer-Debug.apk \;
-        ls -la ./SpeedRacer-Debug.apk
+        godot_executable_download_url: https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_linux.x86_64.zip
+        godot_export_templates_download_url: https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_export_templates.tpz
+        relative_project_path: ./extracted_project/GodotRacer
+        export_debug: true
+        archive_output: true
+        verbose: true
 
     - name: Upload APK Artifact
-      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: SpeedRacer-APK
-        path: ./SpeedRacer-Debug.apk
+        path: |
+          **/*.apk
+          **/*.zip
