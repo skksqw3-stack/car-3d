@@ -27,7 +27,6 @@ jobs:
 
     - name: Setup Android SDK (Manual)
       run: |
-        # نصب Android SDK Command-line Tools
         sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools
         cd /usr/local/lib/android/sdk/cmdline-tools
         sudo wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
@@ -35,26 +34,26 @@ jobs:
         sudo mv cmdline-tools latest
         sudo rm cmdline-tools.zip
         
-        # تنظیم متغیرهای محیطی
+        export ANDROID_HOME=/usr/local/lib/android/sdk
+        export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+        
         echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
         echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
         echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
         
-        # پذیرش لایسنس‌ها و نصب پکیج‌های مورد نیاز
-        yes | sdkmanager --licenses || true
+        yes | sdkmanager --licenses > /dev/null 2>&1 || true
         sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
     - name: Download Godot and Export Templates
       run: |
         GODOT_VERSION="4.2.2"
         
-        echo "دانلود Godot $GODOT_VERSION..."
         wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
         unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
         mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 godot
         chmod +x godot
         
-        echo "دانلود Export Templates..."
         wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
         mkdir -p ~/.local/share/godot/export_templates/
         unzip -q Godot_v${GODOT_VERSION}-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/
@@ -74,8 +73,6 @@ jobs:
         
         cd "$PROJECT_DIR"
         
-        # اجرای دستور Export برای اندروید
-        # نکته: نام پریست (Android) باید دقیقا با نام پریست در فایل export_presets.cfg شما یکی باشد
         ~/work/car-3d/car-3d/godot --headless --export-debug "Android" build/SpeedRacer.apk || \
         ~/work/car-3d/car-3d/godot --headless --export-debug "Android" SpeedRacer.apk
 
