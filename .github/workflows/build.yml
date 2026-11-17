@@ -76,20 +76,6 @@ jobs:
         export/android/debug_keystore_pass = "android"
         EOF
 
-    - name: Check export_presets.cfg
-      run: |
-        PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
-        PROJECT_DIR=$(dirname "$PROJECT_FILE")
-        cd "$PROJECT_DIR"
-        
-        if [ -f "export_presets.cfg" ]; then
-          echo "--- محتوای export_presets.cfg ---"
-          cat export_presets.cfg
-        else
-          echo "خطا: فایل export_presets.cfg وجود ندارد! لطفاً یک پریست اندروید در ادیتور Godot ایجاد کنید."
-          exit 1
-        fi
-
     - name: Build APK
       run: |
         PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
@@ -98,25 +84,19 @@ jobs:
         
         cd "$PROJECT_DIR"
         
-        # ایجاد پوشه build
-        mkdir -p build
-        
-        # اجرای دستور Export با لاگ کامل
-        ~/work/car-3d/car-3d/godot --headless --verbose --export-debug "Android" build/SpeedRacer.apk 2>&1 | tee godot_export.log || \
-        ~/work/car-3d/car-3d/godot --headless --verbose --export-debug "Android" SpeedRacer.apk 2>&1 | tee godot_export.log
+        # اجرای دستور Export
+        ~/work/car-3d/car-3d/godot --headless --export-debug "Android" build/SpeedRacer.apk || \
+        ~/work/car-3d/car-3d/godot --headless --export-debug "Android" SpeedRacer.apk || \
+        ~/work/car-3d/car-3d/godot --headless --export-debug "Android"
 
-    - name: Upload Logs (if failed)
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: Godot-Export-Logs
-        path: |
-          **/godot_export.log
-          **/*.log
+    - name: Find and Rename APK
+      run: |
+        # پیدا کردن هر فایل APK در کل پوشه پروژه و کپی آن به یک مسیر مشخص
+        find extracted_project -name "*.apk" -exec cp {} ./SpeedRacer-Debug.apk \;
+        ls -la ./SpeedRacer-Debug.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: SpeedRacer-APK
-        path: |
-          **/*.apk
+        path: ./SpeedRacer-Debug.apk
