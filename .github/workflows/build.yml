@@ -19,21 +19,30 @@ jobs:
         echo "--- محتوای پوشه استخراج شده ---"
         ls -la extracted_project
 
+    - name: Fix racer.gd Parse Errors
+      run: |
+        PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
+        PROJECT_DIR=$(dirname "$PROJECT_FILE")
+        cd "$PROJECT_DIR"
+        
+        echo "--- محتوای خطوط ۱۴۱ و ۳۷۲ قبل از اصلاح ---"
+        sed -n '141p' scripts/racer.gd
+        sed -n '372p' scripts/racer.gd
+        
+        # اصلاح خطاها با اضافه کردن نوع صریح
+        sed -i '141s/var base =/var base: Node3D =/' scripts/racer.gd || true
+        sed -i '372s/var lane =/var lane: int =/' scripts/racer.gd || true
+        
+        echo "--- محتوای خطوط ۱۴۱ و ۳۷۲ بعد از اصلاح ---"
+        sed -n '141p' scripts/racer.gd
+        sed -n '372p' scripts/racer.gd
+
     - name: Enable ETC2/ASTC Texture Compression
       run: |
         PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
-        echo "پروژه در مسیر زیر پیدا شد: $PROJECT_FILE"
-        
-        # اضافه کردن تنظیمات ETC2/ASTC به project.godot
         if ! grep -q "textures/vram_compression/import_etc2_astc" "$PROJECT_FILE"; then
-          echo "فعال‌سازی ETC2/ASTC..."
           echo -e "\n[rendering]\ntextures/vram_compression/import_etc2_astc=true" >> "$PROJECT_FILE"
-        else
-          echo "ETC2/ASTC از قبل فعال است."
         fi
-        
-        echo "--- محتوای project.godot بعد از تغییر ---"
-        grep -A 2 "rendering" "$PROJECT_FILE" || true
 
     - name: Setup Java
       uses: actions/setup-java@v5
@@ -51,10 +60,24 @@ jobs:
         archive_output: true
         verbose: true
 
+    - name: Find and Verify APK
+      run: |
+        echo "--- جستجوی فایل‌های APK ---"
+        find . -name "*.apk" -type f -exec ls -lh {} \;
+        
+        # کپی کردن APK به روت برای آپلود مطمئن
+        find . -name "*.apk" -exec cp {} ./SpeedRacer.apk \;
+        
+        if [ -f "./SpeedRacer.apk" ]; then
+          echo "✅ فایل APK با موفقیت پیدا شد."
+          ls -lh ./SpeedRacer.apk
+        else
+          echo "❌ هیچ فایل APK پیدا نشد. لاگ‌ها را بررسی کنید."
+          exit 1
+        fi
+
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: SpeedRacer-APK
-        path: |
-          **/*.apk
-          **/*.zip
+        path: ./SpeedRacer.apk
