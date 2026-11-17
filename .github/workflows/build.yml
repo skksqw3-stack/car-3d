@@ -45,9 +45,9 @@ jobs:
         yes | sdkmanager --licenses > /dev/null 2>&1 || true
         sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-    - name: Download Godot 4.3 and Export Templates
+    - name: Download Godot 4.4.1 and Export Templates
       run: |
-        GODOT_VERSION="4.3"
+        GODOT_VERSION="4.4.1"
         
         wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
         unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
@@ -61,12 +61,10 @@ jobs:
 
     - name: Generate Debug Keystore
       run: |
-        # ساخت کلید دیباگ
         keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
 
     - name: Configure Godot Editor Settings
       run: |
-        # ایجاد فایل تنظیمات ادیتور Godot برای شناسایی SDK و Keystore
         mkdir -p ~/.config/godot
         cat <<EOF > ~/.config/godot/editor_settings-4.tres
         [gd_resource type="EditorSettings" format=3]
@@ -78,15 +76,23 @@ jobs:
         export/android/debug_keystore_pass = "android"
         EOF
 
+    - name: Check export_presets.cfg
+      run: |
+        PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
+        PROJECT_DIR=$(dirname "$PROJECT_FILE")
+        cd "$PROJECT_DIR"
+        
+        if [ -f "export_presets.cfg" ]; then
+          echo "--- محتوای export_presets.cfg ---"
+          cat export_presets.cfg
+        else
+          echo "خطا: فایل export_presets.cfg وجود ندارد! لطفاً یک پریست اندروید در ادیتور Godot ایجاد کنید."
+          exit 1
+        fi
+
     - name: Build APK
       run: |
         PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
-        
-        if [ -z "$PROJECT_FILE" ]; then
-          echo "خطا: فایل project.godot پیدا نشد."
-          exit 1
-        fi
-        
         PROJECT_DIR=$(dirname "$PROJECT_FILE")
         echo "پروژه Godot در مسیر زیر پیدا شد: $PROJECT_DIR"
         
