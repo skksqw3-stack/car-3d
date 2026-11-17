@@ -1,4 +1,4 @@
-name: Build APK from Zip
+name: Build APK
 
 on:
   push:
@@ -10,46 +10,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Unzip the project
-      run: |
-        unzip -q CarRacing3D-Kotlin-Android.zip -d extracted_project
-        echo "--- محتوای پوشه استخراج شده ---"
-        ls -la extracted_project
+    - uses: actions/checkout@v4
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
+        cache: gradle
 
-    - name: Find and Build with Gradle
-      run: |
-        # پیدا کردن مسیر فایل gradlew در هر جای پوشه استخراج شده
-        GRADLEW_PATH=$(find extracted_project -name "gradlew" -type f | head -n 1)
-        
-        if [ -z "$GRADLEW_PATH" ]; then
-          echo "خطا: فایل gradlew در فایل زیپ پیدا نشد. لطفا مطمئن شوید فایل های مخفی پروژه (مانند gradlew و پوشه gradle) در زیپ قرار دارند."
-          exit 1
-        fi
-        
-        echo "فایل gradlew در مسیر زیر پیدا شد: $GRADLEW_PATH"
-        
-        # رفتن به پوشه‌ای که gradlew در آن قرار دارد
-        PROJECT_DIR=$(dirname "$GRADLEW_PATH")
-        cd "$PROJECT_DIR"
-        
-        # دادن دسترسی اجرا
-        chmod +x gradlew
-        
-        # اجرای بیلد
-        ./gradlew assembleDebug
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
-    - name: Upload APK Artifact
+    - name: Build with Gradle
+      run: ./gradlew assembleDebug
+
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: CarRacing3D-Debug-APK
-        path: |
-          **/build/outputs/apk/debug/*.apk
+        name: app-debug
+        path: app/build/outputs/apk/debug/*.apk
