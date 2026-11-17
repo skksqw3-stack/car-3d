@@ -18,7 +18,11 @@ jobs:
     - name: Setup Godot Export Templates
       run: |
         mkdir -v -p ~/.local/share/godot/export_templates/
-        mv /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/4.3.stable
+        if [ -d "/root/.local/share/godot/export_templates/4.3.stable" ]; then
+          mv /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/4.3.stable
+        else
+          echo "قالب‌های خروجی از قبل در مسیر صحیح هستند."
+        fi
 
     - name: Unzip the Godot project
       run: |
@@ -32,15 +36,19 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android SDK
+    - name: Setup Android SDK (بدون sudo)
       run: |
-        sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools
+        # در کانتینر، ما root هستیم، پس نیازی به sudo نیست
+        mkdir -p /usr/local/lib/android/sdk/cmdline-tools
         cd /usr/local/lib/android/sdk/cmdline-tools
-        sudo wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-        sudo unzip -q cmdline-tools.zip
-        sudo mv cmdline-tools latest
-        sudo rm cmdline-tools.zip
         
+        # دانلود و استخراج ابزارهای خط فرمان
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+        unzip -q cmdline-tools.zip
+        mv cmdline-tools latest
+        rm cmdline-tools.zip
+        
+        # تنظیم متغیرهای محیطی
         export ANDROID_HOME=/usr/local/lib/android/sdk
         export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
         export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
@@ -49,6 +57,7 @@ jobs:
         echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
         echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
         
+        # پذیرش لایسنس‌ها و نصب پکیج‌های مورد نیاز
         yes | sdkmanager --licenses > /dev/null 2>&1 || true
         sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
