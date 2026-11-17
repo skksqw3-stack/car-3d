@@ -45,9 +45,9 @@ jobs:
         yes | sdkmanager --licenses > /dev/null 2>&1 || true
         sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-    - name: Download Godot 4.4.1 and Export Templates
+    - name: Download Godot 4.5 and Export Templates
       run: |
-        GODOT_VERSION="4.4.1"
+        GODOT_VERSION="4.5"
         
         wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
         unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
@@ -98,9 +98,21 @@ jobs:
         
         cd "$PROJECT_DIR"
         
-        # اجرای دستور Export برای اندروید
-        ~/work/car-3d/car-3d/godot --headless --export-debug "Android" build/SpeedRacer.apk || \
-        ~/work/car-3d/car-3d/godot --headless --export-debug "Android" SpeedRacer.apk
+        # ایجاد پوشه build
+        mkdir -p build
+        
+        # اجرای دستور Export با لاگ کامل
+        ~/work/car-3d/car-3d/godot --headless --verbose --export-debug "Android" build/SpeedRacer.apk 2>&1 | tee godot_export.log || \
+        ~/work/car-3d/car-3d/godot --headless --verbose --export-debug "Android" SpeedRacer.apk 2>&1 | tee godot_export.log
+
+    - name: Upload Logs (if failed)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Godot-Export-Logs
+        path: |
+          **/godot_export.log
+          **/*.log
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
