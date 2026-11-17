@@ -19,6 +19,22 @@ jobs:
         echo "--- محتوای پوشه استخراج شده ---"
         ls -la extracted_project
 
+    - name: Enable ETC2/ASTC Texture Compression
+      run: |
+        PROJECT_FILE=$(find extracted_project -name "project.godot" | head -n 1)
+        echo "پروژه در مسیر زیر پیدا شد: $PROJECT_FILE"
+        
+        # اضافه کردن تنظیمات ETC2/ASTC به project.godot
+        if ! grep -q "textures/vram_compression/import_etc2_astc" "$PROJECT_FILE"; then
+          echo "فعال‌سازی ETC2/ASTC..."
+          echo -e "\n[rendering]\ntextures/vram_compression/import_etc2_astc=true" >> "$PROJECT_FILE"
+        else
+          echo "ETC2/ASTC از قبل فعال است."
+        fi
+        
+        echo "--- محتوای project.godot بعد از تغییر ---"
+        grep -A 2 "rendering" "$PROJECT_FILE" || true
+
     - name: Setup Java
       uses: actions/setup-java@v5
       with:
