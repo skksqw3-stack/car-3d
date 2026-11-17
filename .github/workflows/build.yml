@@ -3,7 +3,7 @@ name: Build APK from Zip
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # اجازه می‌دهد به صورت دستی هم اجرا کنید
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,39 +15,37 @@ jobs:
 
     - name: Unzip the project
       run: |
-        # نام فایل زیپ شما دقیقا همین است
         unzip -q CarRacing3D-Kotlin-Android.zip -d extracted_project
+        echo "--- محتوای پوشه استخراج شده ---"
+        ls -la extracted_project
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    - name: Grant execute permission for gradlew
+    - name: Find and Build with Gradle
       run: |
-        cd extracted_project
-        # پیدا کردن پوشه اصلی پروژه (چون ممکن است داخل زیپ یک پوشه دیگر باشد)
-        if [ -f "gradlew" ]; then
-          chmod +x gradlew
-        else
-          find . -name "gradlew" -exec chmod +x {} \;
+        # پیدا کردن مسیر فایل gradlew در هر جای پوشه استخراج شده
+        GRADLEW_PATH=$(find extracted_project -name "gradlew" -type f | head -n 1)
+        
+        if [ -z "$GRADLEW_PATH" ]; then
+          echo "خطا: فایل gradlew در فایل زیپ پیدا نشد. لطفا مطمئن شوید فایل های مخفی پروژه (مانند gradlew و پوشه gradle) در زیپ قرار دارند."
+          exit 1
         fi
-
-    - name: Build with Gradle
-      run: |
-        cd extracted_project
-        # اگر فایل gradlew در روت استخراج شده است:
-        if [ -f "gradlew" ]; then
-          ./gradlew assembleDebug
-        else
-          # پیدا کردن مسیر gradlew و اجرای آن
-          GRADLEW_PATH=$(find . -name "gradlew" | head -n 1)
-          DIR=$(dirname "$GRADLEW_PATH")
-          cd "$DIR"
-          ./gradlew assembleDebug
-        fi
+        
+        echo "فایل gradlew در مسیر زیر پیدا شد: $GRADLEW_PATH"
+        
+        # رفتن به پوشه‌ای که gradlew در آن قرار دارد
+        PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+        cd "$PROJECT_DIR"
+        
+        # دادن دسترسی اجرا
+        chmod +x gradlew
+        
+        # اجرای بیلد
+        ./gradlew assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
